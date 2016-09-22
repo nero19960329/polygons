@@ -1,0 +1,29 @@
+<UI version="4.0" >
+ <class>hw1_polygonClass</class>
+ <widget class="QMainWindow" name="hw1_polygonClass" >
+  <property name="objectName" >
+   <string notr="true">hw1_polygonClass</string>
+  </property>
+  <property name="geometry" >
+   <rect>
+	<x>0</x>
+	<y>0</y>
+	<width>600</width>
+	<height>400</height>
+   </rect>
+  </property>
+  <property name="windowTitle" >
+   <string>hw1_polygon</string>
+  </property>
+  <widget class="QMenuBar" name="menuBar" />
+  <widget class="QToolBar" name="mainToolBar" />
+  <widget class="QWidget" name="centralWidget" />
+  <widget class="QStatusBar" name="statusBar" />
+ </widget>
+ <layoutDefault spacing="6" margin="11" />
+ <pixmapfunction></pixmapfunction>
+ <resources>
+   <include location="hw1_polygon.qrc"/>
+ </resources>
+ <connections/>
+</UI>

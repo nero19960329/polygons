@@ -4,8 +4,11 @@
 #include <QtWidgets/QMainWindow>
 #include "ui_hw1_polygon.h"
 
-class hw1_polygon : public QMainWindow
-{
+#include "UIWidget.h"
+
+#include <QGridLayout>
+
+class hw1_polygon : public QMainWindow {
 	Q_OBJECT
 
 public:
@@ -14,6 +17,10 @@ public:
 
 private:
 	Ui::hw1_polygonClass ui;
+
+	UIWidget *uiWidget;
+	QWidget *widget;
+	QGridLayout *mainLayout;
 };
 
 #endif // HW1_POLYGON_H

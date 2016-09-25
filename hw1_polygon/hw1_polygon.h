@@ -7,6 +7,11 @@
 #include "UIWidget.h"
 
 #include <QGridLayout>
+#include <QListView>
+#include <QModelIndex>
+#include <QPushButton>
+#include <QStringList>
+#include <QStringListModel>
 
 class hw1_polygon : public QMainWindow {
 	Q_OBJECT
@@ -21,6 +26,20 @@ private:
 	UIWidget *uiWidget;
 	QWidget *widget;
 	QGridLayout *mainLayout;
+	QListView *polygonListView;
+	QStringListModel *polygonModel;
+	QStringList *polygonList;
+	QPushButton *fillPolygonButton;
+	QPushButton *addInnerRingButton;
+
+	int nowPolygon;
+	bool innerMode;
+
+public slots:
+	void insertPolygonLabel(int);
+	void polygonClicked(QModelIndex);
+	void fillPolygon();
+	void setInnerMode();
 };
 
 #endif // HW1_POLYGON_H

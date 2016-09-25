@@ -93,3 +93,20 @@ double intersect(int y, int maxX, pair<int, int> p1, pair<int, int> p2) {
 		return -2;
 	}
 }
+
+bool isClockwise(const list< pair<int, int> >& ids) {
+	int r = 0;
+
+	list< pair<int, int> >::const_iterator it1 = ids.cbegin();
+	list< pair<int, int> >::const_iterator it2 = ids.cbegin();
+	++it2;
+	for (; it2 != ids.cend(); ++it1, ++it2) {
+		r += (it1->first - it2->first) * (it1->second + it2->second);
+	}
+
+	if (r < 0) {
+		return false;
+	} else {
+		return true;
+	}
+}

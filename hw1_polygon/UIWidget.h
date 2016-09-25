@@ -3,11 +3,12 @@
 
 #include <QWidget>
 
+#include <list>
 #include <vector>
 
 #include "Polygon.h"
 
-enum STATUS { STATUS_DRAWING, STATUS_DONE };
+enum STATUS { STATUS_DRAWING, STATUS_DONE, STATUS_INNER, STATUS_INNERDRAWING };
 
 class UIWidget : public QWidget {
 	Q_OBJECT
@@ -21,11 +22,22 @@ public:
 	void mousePressEvent(QMouseEvent *);
 	void mouseMoveEvent(QMouseEvent *);
 
+signals:
+	void polygonInserted(int);
+
 private:
 	void setBackground(QRgb);
 	void drawLines(QRgb);
-	void drawLineBresenham(std::pair<int, int>, std::pair<int, int>, QRgb);
-	void fillPolygon(Polygon& polygon);
+	std::list< std::pair<int, int> > drawLineBresenham(std::pair<int, int>, std::pair<int, int>, QRgb);
+	void fillPolygon(const Polygon& polygon);
+	void highlightPolygon(const Polygon& polygon);
+
+public:
+	void fillPolygon(int index);
+	void highlightPolygon(int index);
+	void recoverPolygon(int index);
+	void setCurrentPolygon(int);
+	void setDrawStatus(STATUS);
 
 private:
 	const static int width = 801;
@@ -39,10 +51,11 @@ private:
 	QImage *img;
 
 	std::pair<int, int> hoverPoint;
-	QRgb lastColor;
 	STATUS drawStatus;
-	std::vector<Polygon> polygons;
-	Polygon polygon;
+	std::vector<Polygon*> polygons;
+	Polygon *polygon;
+
+	std::list< std::pair<int, int> > tmpPointList;
 };
 
 #endif

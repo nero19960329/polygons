@@ -23,7 +23,7 @@ public:
 private:
 	Ui::hw1_polygonClass ui;
 
-	UIWidget *uiWidget;
+	canvas::UIWidget *uiWidget;
 	QWidget *widget;
 	QGridLayout *mainLayout;
 	QListView *polygonListView;
@@ -31,6 +31,9 @@ private:
 	QStringList *polygonList;
 	QPushButton *fillPolygonButton;
 	QPushButton *addInnerRingButton;
+	QPushButton *horizontalFlipButton;
+	QPushButton *verticalFlipButton;
+	QPushButton *cutButton;
 
 	int nowPolygon;
 	bool innerMode;
@@ -40,6 +43,10 @@ public slots:
 	void polygonClicked(QModelIndex);
 	void fillPolygon();
 	void setInnerMode();
+	void setSelectedPolygon(int);
+	void horizontalFlip();
+	void verticalFlip();
+	void cut();
 };
 
 #endif // HW1_POLYGON_H

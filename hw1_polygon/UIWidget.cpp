@@ -1,4 +1,5 @@
 #include "UIWidget.h"
+#include "Utils.h"
 
 #include <QDebug>
 #include <QImage>
@@ -8,27 +9,30 @@
 #include <QRect>
 #include <QRgb>
 
-#include <algorithm>
-
-#include "Utils.h"
-
 #define GOLDEN_RATIO 0.618033988749895
 #define DEFAULT_S 0.9
-#define DEFAULT_V 0.5
+#define DEFAULT_V 0.7
+#define PI 3.1415926
 
 using namespace std;
+using namespace canvas;
 
 UIWidget::UIWidget(QWidget *parent) : QWidget(parent) {
-	QRgb white = qRgb(255, 255, 255);
-	QRgb grey = qRgb(200, 200, 200);
-
 	setMouseTracking(true);
 	setCursor(Qt::BlankCursor);
-	setFixedSize(width, height);
+	setFixedSize(canvas::width, canvas::height);
 
-	img = new QImage(width, height, QImage::Format_RGB32);
+	img = new QImage(canvas::width, canvas::height, QImage::Format_RGB32);
 	drawStatus = STATUS_DONE;
+	innerFlag = false;
+	topZIndex = 0;
+	midButtonDown = false;
+	rightButtonDown = false;
+	lastX = -1;
+	lastY = -1;
+	selectedPolygon = -1;
 
+	memset(zIndexMap, 0, sizeof(zIndexMap));
 	setBackground(white);
 	drawLines(grey);
 }
@@ -46,164 +50,170 @@ void UIWidget::setBackground(QRgb color) {
 }
 
 void UIWidget::drawLines(QRgb color) {
-	for (int i = 0; i < width; i += wInterval) {
-		for (int j = 0; j < height; ++j) {
+	for (int i = 0; i < canvas::width; i += wInterval) {
+		for (int j = 0; j < canvas::height; ++j) {
 			img->setPixel(i, j, color);
 		}
 	}
 
-	for (int j = 0; j < height; j += hInterval) {
-		for (int i = 0; i < width; ++i) {
+	for (int j = 0; j < canvas::height; j += hInterval) {
+		for (int i = 0; i < canvas::width; ++i) {
 			img->setPixel(i, j, color);
 		}
 	}
 }
 
-list< pair<int, int> > UIWidget::drawLineBresenham(pair<int, int> p1, pair<int, int> p2, QRgb color) {
-	list< pair<int, int> > ids;
-
-	int x, y, dx, dy, sign;
-	float k, e;
-	int x1, y1, x2, y2;
-	x1 = p1.first;
-	y1 = p1.second;
-	x2 = p2.first;
-	y2 = p2.second;
-	dx = x2 - x1;
-	dy = y2 - y1;
-
-	if (!dx) {
-		if (y1 > y2) {
-			swap(y1, y2);
-		}
-
-		for (int j = y1; j <= y2; ++j) {
-			pixelMap[x1][j] = color;
-			ids.push_back(make_pair(x1, j));
-		}
-		return ids;
-	}
-
-	k = dy * 1.0 / dx;
-	e = -0.5;
-	sign = k > 0 ? 1 : -1;
-	k = abs(k);
-
-	if (k >= -1 && k <= 1) {
-		if (x1 > x2) {
-			swap(x1, x2);
-			swap(y1, y2);
-			dx = -dx;
-		}
-		x = x1;
-		y = y1;
-
-		for (int i = 0; i <= dx; ++i) {
-			pixelMap[x][y] = color;
-			ids.push_back(make_pair(x, y));
-			++x;
-			e += k;
-			if (e >= 0) {
-				y += sign;
-				e -= 1;
-			}
-		}
-	} else {
-		if (y1 > y2) {
-			swap(x1, x2);
-			swap(y1, y2);
-			dy = -dy;
-		}
-		x = x1;
-		y = y1;
-
-		k = 1.0 / k;
-		for (int j = 0; j <= dy; ++j) {
-			pixelMap[x][y] = color;
-			ids.push_back(make_pair(x, y));
-			++y;
-			e += k;
-			if (e >= 0) {
-				x += sign;
-				e -= 1;
-			}
-		}
-	}
-
-	return ids;
-}
-
-void UIWidget::fillPolygon(const Polygon& polygon) {
-	for (int j = 0; j < hNum; ++j) {
-		vector<int> intersections;
-		list< pair<int, int> >::const_iterator p1, p2;
-		p1 = polygon.v.cbegin();
-		p2 = polygon.v.cbegin();
-		++p2;
-		for (; p2 != polygon.v.cend(); ++p1, ++p2) {
-			if (p1->first == -1 || p2->first == -1) {
-				continue;
-			}
-
-			float x = intersect(j, wNum, *p1, *p2);
-
-			if (x == -1) {
-				intersections.push_back(p1->first);
-				intersections.push_back(p2->first);
-			} else if (x >= 0) {
-				if (abs(x - p1->first) < 1e-6 && j == p1->second) {
-					if (p2->second > p1->second) {
-						intersections.push_back(p1->first);
-					}
-				} else if (abs(x - p2->first) < 1e-6 && j == p2->second) {
-					if (p1->second > p2->second) {
-						intersections.push_back(p2->first);
-					}
-				} else {
-					intersections.push_back(round(x));
-				}
-			}
-		}
-
-		int len = intersections.size();
-		if (!len || len % 2) {
-			continue;
-		}
-
-		sort(intersections.begin(), intersections.end());
-
-		for (int i = 0; i < len; i += 2) {
-			for (int p = intersections[i]; p <= intersections[i + 1]; ++p) {
-				pixelMap[p][j] = polygon.color;
-			}
-		}
-	}
-}
-
-void UIWidget::highlightPolygon(const Polygon& polygon) {
+bool UIWidget::highlightPolygon(const Polygon& polygon) {
 	QRgb color = polygon.color;
 	int r = min(255, qRed(color) * 1.0 / DEFAULT_V);
 	int g = min(255, qGreen(color) * 1.0 / DEFAULT_V);
 	int b = min(255, qBlue(color) * 1.0 / DEFAULT_V);
 
+	pair<int, int> p = *(polygon.boundary.begin());
+	if (pixelMap[p.first][p.second] == qRgb(r, g, b)) {
+		return false;
+	}
+
 	for (auto id : polygon.boundary) {
-		pixelMap[id.first][id.second] = qRgb(r, g, b);
+		if (id.first >= 0 && id.first < wNum &&
+			id.second >= 0 && id.second < hNum) {
+				setPixelMap(polygon.zIndex, id.first, id.second, qRgb(r, g, b));
+		}
+	}
+
+	return true;
+}
+
+void UIWidget::setPixelMap(int zIndex, int x, int y, const QRgb& color) {
+	if (!zIndexMap[x][y]) {
+		zIndexMap[x][y] = new list<int>();
+	}
+
+	list<int> *idxList = zIndexMap[x][y];
+	if (!idxList->size() || zIndex > *(idxList->begin())) {
+		pixelMap[x][y] = color;
+		idxList->push_front(zIndex);
+	} else if (zIndex == *(idxList->begin())) {
+		pixelMap[x][y] = color;
+	} else {
+		auto idx = idxList->begin();
+		for (; idx != idxList->end(); ++idx) {
+			if (zIndex == *idx) {
+				return;
+			} else if (zIndex > *idx) {
+				idxList->insert(idx, zIndex);
+				return;
+			}
+		}
+
+		idxList->insert(idx, zIndex);
+	}
+}
+
+void UIWidget::removeFromPixelMap(int zIndex, int x, int y) {
+	list<int> *idxList = zIndexMap[x][y];
+	if (!idxList) {
+		return;
+	}
+
+	if (zIndex > *(idxList->begin())) {
+		return;
+	} else if (zIndex == *(idxList->begin())) {
+		idxList->erase(idxList->begin());
+
+		if (idxList->size()) {
+			pixelMap[x][y] = polygons[*(idxList->begin()) - 1]->color;
+		} else {
+			pixelMap[x][y] = white;
+		}
+	} else {
+		for (auto idx = idxList->begin(); idx != idxList->end(); ++idx) {
+			if (zIndex == *idx) {
+				idxList->erase(idx);
+				break;
+			} else if (zIndex > *idx) {
+				break;
+			}
+		}
+	}
+
+	if (!idxList->size()) {
+		delete zIndexMap[x][y];
+		zIndexMap[x][y] = NULL;
+	}
+}
+
+void UIWidget::polygonTransition(Polygon& p, float transMat[3][3]) {
+	removePolygonPoints(p);
+	p.transition(transMat);
+	setPolygonPoints(p);
+	repaint();
+}
+
+void UIWidget::polygonHorizontalFlip(Polygon& p) {
+	float transMat[3][3];
+	getHorizontalFlipMatrix(p.center.first, transMat);
+	polygonTransition(p, transMat);
+	highlightPolygon(p);
+	repaint();
+}
+
+void UIWidget::polygonVerticalFlip(Polygon& p) {
+	float transMat[3][3];
+	getVerticalFlipMatrix(p.center.second, transMat);
+	polygonTransition(p, transMat);
+	highlightPolygon(p);
+	repaint();
+}
+
+void UIWidget::removePolygonPoints(Polygon& p) {
+	for (auto vertex : p.boundary) {
+		if (vertex.first >= 0 && vertex.first < wNum &&
+			vertex.second >= 0 && vertex.second < hNum) {
+				removeFromPixelMap(p.zIndex, vertex.first, vertex.second);
+		}
+	}
+
+	for (auto vertex : p.interior) {
+		if (vertex.first >= 0 && vertex.first < wNum &&
+			vertex.second >= 0 && vertex.second < hNum) {
+				removeFromPixelMap(p.zIndex, vertex.first, vertex.second);
+		}
+	}
+}
+
+void UIWidget::setPolygonPoints(Polygon& p) {
+	for (auto vertex : p.boundary) {
+		if (vertex.first >= 0 && vertex.first < wNum &&
+			vertex.second >= 0 && vertex.second < hNum) {
+				setPixelMap(p.zIndex, vertex.first, vertex.second, p.color);
+		}
+	}
+
+	for (auto vertex : p.interior) {
+		if (vertex.first >= 0 && vertex.first < wNum && 
+			vertex.second >= 0 && vertex.second < hNum) {
+				setPixelMap(p.zIndex, vertex.first, vertex.second, p.color);
+		}
 	}
 }
 
 void UIWidget::fillPolygon(int index) {
-	fillPolygon(*polygons[index]);
+	polygons[index]->fill();
+	for (auto vertex : polygons[index]->interior) {
+		setPixelMap(polygons[index]->zIndex, vertex.first, vertex.second, polygons[index]->color);
+	}
 	highlightPolygon(index);
 	repaint();
 }
 
-void UIWidget::highlightPolygon(int index) {
-	highlightPolygon(*polygons[index]);
+bool UIWidget::highlightPolygon(int index) {
+	return highlightPolygon(*polygons[index]);
 }
 
 void UIWidget::recoverPolygon(int index) {
 	for (auto id : polygons[index]->boundary) {
-		pixelMap[id.first][id.second] = polygons[index]->color;
+		setPixelMap(polygons[index]->zIndex, id.first, id.second, polygons[index]->color);
 	}
 }
 
@@ -213,6 +223,30 @@ void UIWidget::setCurrentPolygon(int index) {
 
 void UIWidget::setDrawStatus(STATUS status) {
 	drawStatus = status;
+}
+
+void UIWidget::setInnerFlag(bool flag) {
+	innerFlag = flag;
+}
+
+void UIWidget::polygonTransition(int index, float transMat[3][3]) {
+	polygonTransition(*polygons[index], transMat);
+}
+
+void UIWidget::polygonHorizontalFlip(int index) {
+	polygonHorizontalFlip(*polygons[index]);
+}
+
+void UIWidget::polygonVerticalFlip(int index) {
+	polygonVerticalFlip(*polygons[index]);
+}
+
+void UIWidget::polygonCut(int idx1, int idx2) {
+	removePolygonPoints(*polygons[idx1]);
+	removePolygonPoints(*polygons[idx2]);
+	polygons[idx1]->cut(*polygons[idx2]);
+	setPolygonPoints(*polygons[idx1]);
+	repaint();
 }
 
 void UIWidget::paintEvent(QPaintEvent *) {
@@ -236,7 +270,7 @@ void UIWidget::paintEvent(QPaintEvent *) {
 	}
 
 	QPainter p(this);
-	p.drawImage(QRect(0, 0, width, height), *img);
+	p.drawImage(QRect(0, 0, canvas::width, canvas::height), *img);
 }
 
 void UIWidget::mousePressEvent(QMouseEvent *event) {
@@ -246,37 +280,29 @@ void UIWidget::mousePressEvent(QMouseEvent *event) {
 		if (drawStatus == STATUS_DONE) {
 			drawStatus = STATUS_DRAWING;
 
-			double nowColor = GOLDEN_RATIO * polygons.size();
-			nowColor -= floor(nowColor);
-			int *rgb = HSVtoRGB(nowColor, DEFAULT_S, DEFAULT_V);
+			if (!innerFlag) {
+				double nowColor = GOLDEN_RATIO * polygons.size();
+				nowColor -= floor(nowColor);
+				int *rgb = HSVtoRGB(nowColor, DEFAULT_S, DEFAULT_V);
 
-			polygon = new Polygon();
-			polygon->color = qRgb(rgb[0], rgb[1], rgb[2]);
-			polygon->insertVertex(make_pair(p.x() / wInterval, p.y() / hInterval));
+				polygon = new Polygon();
+				polygon->zIndex = ++topZIndex;
+				polygon->color = qRgb(rgb[0], rgb[1], rgb[2]);
+			}
+
+			tmpPointList = list< pair<int, int> >();
+			tmpPointList.push_back(make_pair(p.x() / wInterval, p.y() / hInterval));
 		} else if (drawStatus == STATUS_DRAWING) {
 			int x, y;
 			x = p.x() / wInterval;
 			y = p.y() / hInterval;
 
-			pair<int, int> lastPair = *(polygon->v.rbegin());
-			list< pair<int, int> > ids = drawLineBresenham(lastPair, make_pair(x, y), polygon->color);
-			appendList(polygon->boundary, ids);
-			polygon->insertVertex(make_pair(x, y));
-
-			repaint();
-		} else if (drawStatus == STATUS_INNER) {
-			drawStatus = STATUS_INNERDRAWING;
-
-			tmpPointList = list< pair<int, int> >();
-			tmpPointList.push_back(make_pair(p.x() / wInterval, p.y() / hInterval));
-		} else if (drawStatus == STATUS_INNERDRAWING) {
-			int x, y;
-			x = p.x() / wInterval;
-			y = p.y() / hInterval;
-
 			pair<int, int> lastPair = *(tmpPointList.rbegin());
-			list< pair<int, int> > ids = drawLineBresenham(lastPair, make_pair(x, y), polygon->color);
-			appendList(polygon->boundary, ids);
+			list< pair<int, int> > points = drawLineBresenham(lastPair, make_pair(x, y));
+			for (auto point : points) {
+				setPixelMap(polygon->zIndex, point.first, point.second, polygon->color);
+			}
+			appendList(polygon->boundary, points);
 			tmpPointList.push_back(make_pair(x, y));
 
 			repaint();
@@ -284,41 +310,63 @@ void UIWidget::mousePressEvent(QMouseEvent *event) {
 	} else if (event->button() == Qt::RightButton) {
 		if (drawStatus == STATUS_DRAWING) {
 			drawStatus = STATUS_DONE;
-			
-			pair<int, int> firstPair = *(polygon->v.begin());
-			pair<int, int> lastPair = *(polygon->v.rbegin());
-			list< pair<int, int> > ids = drawLineBresenham(lastPair, firstPair, polygon->color);
-			appendList(polygon->boundary, ids);
-			polygon->insertVertex(firstPair);
-
-			if (isClockwise(polygon->v)) {
-				polygon->v.reverse();
-			}
-
-			polygon->insertVertex(make_pair(-1, -1));
-			polygons.push_back(polygon);
-
-			emit(polygonInserted(polygons.size() - 1));
-			repaint();
-		} else if (drawStatus == STATUS_INNERDRAWING) {
-			drawStatus = STATUS_INNER;
 
 			pair<int, int> firstPair = *(tmpPointList.begin());
 			pair<int, int> lastPair = *(tmpPointList.rbegin());
-			list< pair<int, int> > ids = drawLineBresenham(lastPair, firstPair, polygon->color);
-			appendList(polygon->boundary, ids);
+			list< pair<int, int> > points = drawLineBresenham(lastPair, firstPair);
+			for (auto point : points) {
+				setPixelMap(polygon->zIndex, point.first, point.second, polygon->color);
+			}
+			appendList(polygon->boundary, points);
 			tmpPointList.push_back(firstPair);
 
-			if (!isClockwise(polygon->v)) {
+			if (isClockwise(tmpPointList) == !innerFlag) {
 				tmpPointList.reverse();
 			}
 
-			tmpPointList.push_back(make_pair(-1, -1));
+			tmpPointList.push_back(make_pair(MIN_INT, MIN_INT));
 			appendList(polygon->v, tmpPointList);
 
-			highlightPolygon(*polygon);
+			if (!innerFlag) {
+				polygon->computeCenter();
+				polygons.push_back(polygon);
+				colorToIDMap[polygon->color] = polygons.size();
+
+				int r = min(255, qRed(polygon->color) * 1.0 / DEFAULT_V);
+				int g = min(255, qGreen(polygon->color) * 1.0 / DEFAULT_V);
+				int b = min(255, qBlue(polygon->color) * 1.0 / DEFAULT_V);
+				colorToIDMap[qRgb(r, g, b)] = polygons.size();
+
+				emit(polygonInserted(polygons.size() - 1));
+			} else {
+				highlightPolygon(*polygon);
+			}
+
 			repaint();
+		} else {
+			hoverPoint = make_pair(-1, -1);
+			rightButtonDown = true;
+			lastX = -1;
+			lastY = -1;
 		}
+	} else if (event->button() == Qt::MiddleButton) {
+		midButtonDown = true;
+		lastX = -1;
+		lastY = -1;
+	}
+}
+
+void UIWidget::mouseReleaseEvent(QMouseEvent *event) {
+	if (event->button() == Qt::MiddleButton) {
+		setCursor(Qt::BlankCursor);
+		midButtonDown = false;
+		lastX = -1;
+		lastY = -1;
+	} else if (event->button() == Qt::RightButton) {
+		setCursor(Qt::BlankCursor);
+		rightButtonDown = false;
+		lastX = -1;
+		lastY = -1;
 	}
 }
 
@@ -329,11 +377,64 @@ void UIWidget::mouseMoveEvent(QMouseEvent *event) {
 	x = p.x() / wInterval;
 	y = p.y() / hInterval;
 
-	if (x < 0 || x >= wNum || y < 0 || y >= hNum) {
-		hoverPoint = make_pair(-1, -1);
-	} else {
-		hoverPoint = make_pair(x, y);
-	}
+	if (rightButtonDown) {
+		if (selectedPolygon != -1) {
+			setCursor(Qt::SizeAllCursor);
+			if (lastX == -1 || lastY == -1) {
+				lastX = x;
+				lastY = y;
+				return;
+			}
+			Polygon *polygon = polygons[selectedPolygon];
+			polygon->computeCenter();
+			pair<float, float> a = make_pair(x - polygon->center.first, y - polygon->center.second);
+			pair<float, float> b = make_pair(lastX - polygon->center.first, lastY - polygon->center.second);
+			lastX = x;
+			lastY = y;
+			float theta = acosf(dot(a, b) / (norm(a) * norm(b) + 1e-4));
+			if (cross(a, b) > 0) {
+				theta = -theta;
+			}
 
-	repaint();
+			float transMat[3][3];
+			getRotateMatrix(polygon->center.first, polygon->center.second, theta, transMat);
+			polygonTransition(selectedPolygon, transMat);
+			repaint();
+		}
+	} else if (midButtonDown && selectedPolygon != -1) {
+		setCursor(Qt::SizeAllCursor);
+		hoverPoint = make_pair(-1, -1);
+		if (lastX != -1 && lastY != -1) {
+			float transMat[3][3];
+			getTranslationMatrix(x - lastX, y - lastY, transMat);
+			polygonTransition(selectedPolygon, transMat);
+			highlightPolygon(selectedPolygon);
+			repaint();
+		}
+		lastX = x;
+		lastY = y;
+	} else {
+		if (x < 0 || x >= wNum || y < 0 || y >= hNum) {
+			hoverPoint = make_pair(-1, -1);
+		} else {
+			selectedPolygon = colorToIDMap[pixelMap[x][y]] - 1;
+			emit(polygonSelected(colorToIDMap[pixelMap[x][y]] - 1));
+			hoverPoint = make_pair(x, y);
+		}
+		repaint();
+	}
+}
+
+void UIWidget::wheelEvent(QWheelEvent *event) {
+	if (selectedPolygon != -1) {
+		float tmp = event->delta() > 0 ? 0.1f: -0.1f;
+
+		Polygon *polygon = polygons[selectedPolygon];
+		polygon->computeCenter();
+		float transMat[3][3];
+		getScaleMatrix(polygon->center.first, polygon->center.second, 1.0 + tmp, 1.0 + tmp, transMat);
+
+		polygonTransition(selectedPolygon, transMat);
+		repaint();
+	}
 }

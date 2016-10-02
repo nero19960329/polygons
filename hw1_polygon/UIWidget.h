@@ -2,44 +2,15 @@
 #define UIWIDGET_H
 
 #include <QWidget>
+#include <QWheelEvent>
 
 #include <list>
 #include <vector>
+#include <unordered_map>
 
 #include "Polygon.h"
 
-enum STATUS { STATUS_DRAWING, STATUS_DONE, STATUS_INNER, STATUS_INNERDRAWING };
-
-class UIWidget : public QWidget {
-	Q_OBJECT
-
-public:
-	UIWidget(QWidget *parent);
-	~UIWidget();
-
-public:
-	void paintEvent(QPaintEvent *);
-	void mousePressEvent(QMouseEvent *);
-	void mouseMoveEvent(QMouseEvent *);
-
-signals:
-	void polygonInserted(int);
-
-private:
-	void setBackground(QRgb);
-	void drawLines(QRgb);
-	std::list< std::pair<int, int> > drawLineBresenham(std::pair<int, int>, std::pair<int, int>, QRgb);
-	void fillPolygon(const Polygon& polygon);
-	void highlightPolygon(const Polygon& polygon);
-
-public:
-	void fillPolygon(int index);
-	void highlightPolygon(int index);
-	void recoverPolygon(int index);
-	void setCurrentPolygon(int);
-	void setDrawStatus(STATUS);
-
-private:
+namespace canvas {
 	const static int width = 801;
 	const static int height = 601;
 	const static int wNum = 160;
@@ -47,15 +18,73 @@ private:
 	const static int wInterval = width / wNum;
 	const static int hInterval = height / hNum;
 
-	QRgb pixelMap[wNum][hNum];
-	QImage *img;
+	const static QRgb white = qRgb(255, 255, 255);
+	const static QRgb grey = qRgb(200, 200, 200);
+	const static QRgb black = qRgb(0, 0, 0);
 
-	std::pair<int, int> hoverPoint;
-	STATUS drawStatus;
-	std::vector<Polygon*> polygons;
-	Polygon *polygon;
+	enum STATUS { STATUS_DRAWING, STATUS_DONE };
 
-	std::list< std::pair<int, int> > tmpPointList;
+	class UIWidget : public QWidget {
+		Q_OBJECT
+
+	public:
+		UIWidget(QWidget *parent);
+		~UIWidget();
+
+	public:
+		void paintEvent(QPaintEvent *);
+		void mousePressEvent(QMouseEvent *);
+		void mouseReleaseEvent(QMouseEvent *);
+		void mouseMoveEvent(QMouseEvent *);
+		void wheelEvent(QWheelEvent *);
+
+	signals:
+		void polygonInserted(int);
+		void polygonSelected(int);
+
+	private:
+		void setBackground(QRgb);
+		void drawLines(QRgb);
+		bool highlightPolygon(const Polygon &);
+		void setPixelMap(int, int , int , const QRgb &);
+		void removeFromPixelMap(int, int, int);
+		void polygonTransition(Polygon &, float[3][3]);
+		void polygonHorizontalFlip(Polygon &);
+		void polygonVerticalFlip(Polygon &);
+		void removePolygonPoints(Polygon &);
+		void setPolygonPoints(Polygon &);
+
+	public:
+		void fillPolygon(int index);
+		bool highlightPolygon(int index);
+		void recoverPolygon(int index);
+		void setCurrentPolygon(int);
+		void setDrawStatus(STATUS);
+		void setInnerFlag(bool);
+		void polygonTransition(int, float[3][3]);
+		void polygonHorizontalFlip(int);
+		void polygonVerticalFlip(int);
+		void polygonCut(int, int);
+
+	private:
+		int selectedPolygon;
+		int lastX, lastY;
+		bool midButtonDown, rightButtonDown;
+
+		QRgb pixelMap[wNum][hNum];
+		std::list<int> *zIndexMap[wNum][hNum];
+		std::unordered_map<QRgb, int> colorToIDMap;
+		QImage *img;
+
+		std::pair<int, int> hoverPoint;
+		STATUS drawStatus;
+		std::vector<Polygon*> polygons;
+		Polygon *polygon;
+		int topZIndex;
+
+		bool innerFlag;
+		std::list< std::pair<int, int> > tmpPointList;
+	};
 };
 
 #endif

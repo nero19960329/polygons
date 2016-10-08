@@ -28,7 +28,7 @@ namespace canvas {
 		Q_OBJECT
 
 	public:
-		UIWidget(QWidget *parent);
+		UIWidget(QWidget *parent, int *nowPolygon, int *hoverPolygon);
 		~UIWidget();
 
 	public:
@@ -41,6 +41,7 @@ namespace canvas {
 	signals:
 		void polygonInserted(int);
 		void polygonSelected(int);
+		void closeInnerMode();
 
 	private:
 		void setBackground(QRgb);
@@ -55,9 +56,9 @@ namespace canvas {
 		void setPolygonPoints(Polygon &);
 
 	public:
-		void fillPolygon(int index);
-		bool highlightPolygon(int index);
-		void recoverPolygon(int index);
+		void fillPolygon(int);
+		bool highlightPolygon(int);
+		void recoverPolygon(int);
 		void setCurrentPolygon(int);
 		void setDrawStatus(STATUS);
 		void setInnerFlag(bool);
@@ -67,6 +68,8 @@ namespace canvas {
 		void polygonCut(int, int);
 
 	private:
+		int *nowPolygon, *hoverPolygon;
+
 		int selectedPolygon;
 		int lastX, lastY;
 		bool midButtonDown, rightButtonDown;
@@ -83,7 +86,7 @@ namespace canvas {
 		int topZIndex;
 
 		bool innerFlag;
-		std::list< std::pair<int, int> > tmpPointList;
+		std::list< std::pair<float, float> > tmpPointList;
 	};
 };
 

@@ -6,6 +6,7 @@
 
 #include "UIWidget.h"
 
+#include <QAction>
 #include <QGridLayout>
 #include <QListView>
 #include <QModelIndex>
@@ -29,23 +30,27 @@ private:
 	QListView *polygonListView;
 	QStringListModel *polygonModel;
 	QStringList *polygonList;
-	QPushButton *fillPolygonButton;
-	QPushButton *addInnerRingButton;
-	QPushButton *horizontalFlipButton;
-	QPushButton *verticalFlipButton;
-	QPushButton *cutButton;
 
-	int nowPolygon;
-	bool innerMode;
+	QAction *fillPolygonAction;
+	QAction *addInnerRingAction;
+	QAction *horizontalFlipAction;
+	QAction *verticalFlipAction;
+	QAction *cutAction;
+
+	int hoverPolygon, nowPolygon;
+	int cutPolygon1, cutPolygon2;
+	bool innerMode, cutMode;
 
 public slots:
 	void insertPolygonLabel(int);
 	void polygonClicked(QModelIndex);
+	void polygonEntered(QModelIndex);
 	void fillPolygon();
 	void setInnerMode();
 	void setSelectedPolygon(int);
 	void horizontalFlip();
 	void verticalFlip();
+	void setCutMode();
 	void cut();
 };
 

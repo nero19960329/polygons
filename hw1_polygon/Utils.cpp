@@ -8,7 +8,7 @@
 
 using namespace std;
 
-int *HSVtoRGB(double h, double s, double v) {
+int *Utils::HSVtoRGB(double h, double s, double v) {
 	h *= 360.0;
 
 	int tmp = floor(h / 60);
@@ -56,22 +56,22 @@ int *HSVtoRGB(double h, double s, double v) {
 	return res;
 }
 
-double intersect(int y, int maxX, pair<int, int> p1, pair<int, int> p2) {
+double Utils::intersect(int y, int maxX, pair<float, float> p1, pair<float, float> p2) {
 	int x1, y1, x2, y2;
-	x1 = p1.first;
-	y1 = p1.second;
-	x2 = p2.first;
-	y2 = p2.second;
+	x1 = round(p1.first);
+	y1 = round(p1.second);
+	x2 = round(p2.first);
+	y2 = round(p2.second);
 
 	if (y < min(y1, y2) || y > max(y1, y2)) {
 		return -2;
 	}
 
 	if (x1 > x2) {
-		x1 = p2.first;
-		y1 = p2.second;
-		x2 = p1.first;
-		y2 = p1.second;
+		x1 = round(p2.first);
+		y1 = round(p2.second);
+		x2 = round(p1.first);
+		y2 = round(p1.second);
 	}
 
 	if (x1 == x2) {
@@ -98,7 +98,7 @@ double intersect(int y, int maxX, pair<int, int> p1, pair<int, int> p2) {
 	}
 }
 
-pair<float, float> intersect(pair<int, int> p1, pair<int, int> p2, pair<int, int> p3, pair<int, int> p4, bool& ok) {
+pair<float, float> Utils::intersect(pair<float, float> p1, pair<float, float> p2, pair<float, float> p3, pair<float, float> p4, bool& ok) {
 	int x1, x2, x3, x4, y1, y2, y3, y4;
 	x1 = p1.first;
 	x2 = p2.first;
@@ -129,11 +129,11 @@ pair<float, float> intersect(pair<int, int> p1, pair<int, int> p2, pair<int, int
 	}
 }
 
-bool isClockwise(const list< pair<int, int> >& ids) {
+bool Utils::isClockwise(const list< pair<float, float> >& ids) {
 	int r = 0;
 
-	list< pair<int, int> >::const_iterator it1 = ids.cbegin();
-	list< pair<int, int> >::const_iterator it2 = ids.cbegin();
+	list< pair<float, float> >::const_iterator it1 = ids.cbegin();
+	list< pair<float, float> >::const_iterator it2 = ids.cbegin();
 	++it2;
 	for (; it2 != ids.cend(); ++it1, ++it2) {
 		r += (it1->first - it2->first) * (it1->second + it2->second);
@@ -146,7 +146,7 @@ bool isClockwise(const list< pair<int, int> >& ids) {
 	}
 }
 
-float **matMul33(float **a, float **b) {
+float **Utils::matMul33(float **a, float **b) {
 	float **c = new float*[3];
 	for (int i = 0; i < 3; ++i) {
 		c[i] = new float[3];
@@ -164,7 +164,7 @@ float **matMul33(float **a, float **b) {
 	return c;
 }
 
-float *matVecMul3(float a[3][3], float b[3]) {
+float *Utils::matVecMul3(float a[3][3], float b[3]) {
 	float *c = new float[3];
 
 	for (int i = 0; i < 3; ++i) {
@@ -177,19 +177,19 @@ float *matVecMul3(float a[3][3], float b[3]) {
 	return c;
 }
 
-float dot(pair<float, float> a, pair<float, float> b) {
+float Utils::dot(pair<float, float> a, pair<float, float> b) {
 	return a.first * b.first + a.second * b.second;
 }
 
-float cross(std::pair<float, float> a, std::pair<float, float> b) {
+float Utils::cross(std::pair<float, float> a, std::pair<float, float> b) {
 	return a.first * b.second - a.second* b.first;
 }
 
-float norm(pair<float, float> a) {
+float Utils::norm(pair<float, float> a) {
 	return sqrt(a.first * a.first + a.second * a.second);
 }
 
-void getTranslationMatrix(float dx, float dy, float mat[3][3]) {
+void Utils::getTranslationMatrix(float dx, float dy, float mat[3][3]) {
 	float res[3][3] = {
 		1.0, 0.0, dx,
 		0.0, 1.0, dy,
@@ -198,7 +198,7 @@ void getTranslationMatrix(float dx, float dy, float mat[3][3]) {
 	memcpy(mat, res, sizeof(res));
 }
 
-void getScaleMatrix(float cx, float cy, float sx, float sy, float mat[3][3]) {
+void Utils::getScaleMatrix(float cx, float cy, float sx, float sy, float mat[3][3]) {
 	float moveMat1[3][3], moveMat2[3][3];
 	getTranslationMatrix(cx, cy, moveMat1);
 	getTranslationMatrix(-cx, -cy, moveMat2);
@@ -219,7 +219,7 @@ void getScaleMatrix(float cx, float cy, float sx, float sy, float mat[3][3]) {
 	}
 }
 
-void getRotateMatrix(float cx, float cy, float theta, float mat[3][3]) {
+void Utils::getRotateMatrix(float cx, float cy, float theta, float mat[3][3]) {
 	float moveMat1[3][3], moveMat2[3][3];
 	getTranslationMatrix(cx, cy, moveMat1);
 	getTranslationMatrix(-cx, -cy, moveMat2);
@@ -240,7 +240,7 @@ void getRotateMatrix(float cx, float cy, float theta, float mat[3][3]) {
 	}
 }
 
-void getHorizontalFlipMatrix(float cx, float mat[3][3]) {
+void Utils::getHorizontalFlipMatrix(float cx, float mat[3][3]) {
 	float moveMat1[3][3], moveMat2[3][3];
 	getTranslationMatrix(cx, 0, moveMat1);
 	getTranslationMatrix(-cx, 0, moveMat2);
@@ -261,8 +261,7 @@ void getHorizontalFlipMatrix(float cx, float mat[3][3]) {
 	}
 }
 
-void getVerticalFlipMatrix(float cy, float mat[3][3]) {
-
+void Utils::getVerticalFlipMatrix(float cy, float mat[3][3]) {
 	float moveMat1[3][3], moveMat2[3][3];
 	getTranslationMatrix(0, cy, moveMat1);
 	getTranslationMatrix(0, -cy, moveMat2);
@@ -283,16 +282,16 @@ void getVerticalFlipMatrix(float cy, float mat[3][3]) {
 	}
 }
 
-list< pair<int, int> > drawLineBresenham(pair<int, int> p1, pair<int, int> p2) {
+list< pair<int, int> > Utils::drawLineBresenham(pair<float, float> p1, pair<float, float> p2) {
 	list< pair<int, int> > ids;
 
 	int x, y, dx, dy, sign;
 	float k, e;
 	int x1, y1, x2, y2;
-	x1 = p1.first;
-	y1 = p1.second;
-	x2 = p2.first;
-	y2 = p2.second;
+	x1 = round(p1.first);
+	y1 = round(p1.second);
+	x2 = round(p2.first);
+	y2 = round(p2.second);
 	dx = x2 - x1;
 	dy = y2 - y1;
 

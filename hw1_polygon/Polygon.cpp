@@ -1,22 +1,20 @@
 #include "Polygon.h"
 #include "UIWidget.h"
 
-#include <QDebug>
-
 using namespace std;
 
 void Polygon::connectVertices() {
 	boundary.clear();
-	list< pair<int, int> >::iterator p1, p2;
+	list< pair<float, float> >::iterator p1, p2;
 	p1 = v.begin();
 	p2 = v.begin();
 	++p2;
 	for (; p2 != v.end(); ++p1, ++p2) {
-		if (p1->first == MIN_INT || p2->first == MIN_INT) {
+		if (p1->first == FLT_MAX || p2->first == FLT_MAX) {
 			continue;
 		}
 
-		list< pair<int, int> > points = drawLineBresenham(*p1, *p2);
+		list< pair<int, int> > points = Utils::drawLineBresenham(*p1, *p2);
 		for (auto point : points) {
 			if (point.first >= 0 && point.first < canvas::wNum &&
 				point.second >= 0 && point.second < canvas::hNum) {
@@ -37,16 +35,16 @@ void Polygon::addInteriorPoint(const pair<int, int>& p) {
 void Polygon::transition(float transMat[3][3]) {
 	float tmp[3], *newPoint;
 	for (auto vertex = v.begin(); vertex != v.end(); ++vertex) {
-		if (vertex->first == MIN_INT) {
+		if (vertex->first == FLT_MAX) {
 			continue;
 		}
 
 		tmp[0] = vertex->first;
 		tmp[1] = vertex->second;
 		tmp[2] = 1.0f;
-		newPoint = matVecMul3(transMat, tmp);
-		vertex->first = round(newPoint[0] / newPoint[2]);
-		vertex->second = round(newPoint[1] / newPoint[2]);
+		newPoint = Utils::matVecMul3(transMat, tmp);
+		vertex->first = newPoint[0] * 1.0 / newPoint[2];
+		vertex->second = newPoint[1] * 1.0 / newPoint[2];
 	}
 
 	connectVertices();
@@ -60,28 +58,34 @@ void Polygon::transition(float transMat[3][3]) {
 void Polygon::fill() {
 	for (int j = 0; j < canvas::hNum; ++j) {
 		vector<int> intersections;
-		list< pair<int, int> >::iterator p1, p2;
+		list< pair<float, float> >::iterator p1, p2;
 		p1 = v.begin();
 		p2 = v.begin();
 		++p2;
+
+		int x1, x2, y1, y2;
 		for (; p2 != v.end(); ++p1, ++p2) {
-			if (p1->first == MIN_INT || p2->first == MIN_INT) {
+			if (p1->first == FLT_MAX || p2->first == FLT_MAX) {
 				continue;
 			}
 
-			float x = intersect(j, canvas::wNum, *p1, *p2);
+			x1 = round(p1->first);
+			y1 = round(p1->second);
+			x2 = round(p2->first);
+			y2 = round(p2->second);
+			float x = Utils::intersect(j, canvas::wNum, *p1, *p2);
 
 			if (x == -1) {
-				intersections.push_back(p1->first);
-				intersections.push_back(p2->first);
+				intersections.push_back(x1);
+				intersections.push_back(x2);
 			} else if (x >= 0) {
-				if (abs(x - p1->first) < 1e-6 && j == p1->second) {
+				if (abs(x - x1) < 1e-6 && j == y1) {
 					if (p2->second > p1->second) {
-						intersections.push_back(p1->first);
+						intersections.push_back(x1);
 					}
-				} else if (abs(x - p2->first) < 1e-6 && j == p2->second) {
+				} else if (abs(x - x2) < 1e-6 && j == y2) {
 					if (p1->second > p2->second) {
-						intersections.push_back(p2->first);
+						intersections.push_back(x2);
 					}
 				} else {
 					intersections.push_back(round(x));
@@ -108,7 +112,7 @@ void Polygon::computeCenter() {
 	int cnt = 0;
 	for (auto vertex : v) {
 		++cnt;
-		if (vertex.first == MIN_INT && vertex.second == MIN_INT) {
+		if (vertex.first == FLT_MAX && vertex.second == FLT_MAX) {
 			break;
 		}
 	}
@@ -126,14 +130,14 @@ void Polygon::computeCenter() {
 
 void Polygon::cut(Polygon &polygon) {
 	typedef struct pointNode {
-		pair<int, int> coor;
+		pair<float, float> coor;
 		bool isIntersection;
 		bool isIn;
 		bool isTraversed;
 		list<pointNode*>::iterator ptr;
 
 		pointNode() {}
-		pointNode(pair<int, int> p, bool interFlag) : coor(p), isIntersection(interFlag), isTraversed(false) {}
+		pointNode(pair<float, float> p, bool interFlag) : coor(p), isIntersection(interFlag), isTraversed(false) {}
 	} pointNode;
 
 	bool ok;
@@ -152,14 +156,14 @@ void Polygon::cut(Polygon &polygon) {
 	it1 = p.begin();
 	it2 = p.begin();
 	while (it1 != p.end()) {
-		if ((*it2)->coor.first == MIN_INT) {
+		if ((*it2)->coor.first == FLT_MAX) {
 			++it2;
 			it1 = it2;
 			continue;
 		}
 		auto tmpIt = it2;
 		++it2;
-		if ((*it2)->coor.first == MIN_INT) {
+		if ((*it2)->coor.first == FLT_MAX) {
 			(*tmpIt)->ptr = it1;
 		}
 	}
@@ -167,14 +171,14 @@ void Polygon::cut(Polygon &polygon) {
 	it1 = q.begin();
 	it2 = q.begin();
 	while (it1 != q.end()) {
-		if ((*it2)->coor.first == MIN_INT) {
+		if ((*it2)->coor.first == FLT_MAX) {
 			++it2;
 			it1 = it2;
 			continue;
 		}
 		auto tmpIt = it2;
 		++it2;
-		if ((*it2)->coor.first == MIN_INT) {
+		if ((*it2)->coor.first == FLT_MAX) {
 			(*tmpIt)->ptr = it1;
 		}
 	}
@@ -184,7 +188,7 @@ void Polygon::cut(Polygon &polygon) {
 	p2 = p.begin();
 	++p2;
 	for (; p2 != p.end(); ) {
-		if ((*p1)->coor.first == MIN_INT || (*p2)->coor.first == MIN_INT) {
+		if ((*p1)->coor.first == FLT_MAX || (*p2)->coor.first == FLT_MAX) {
 			p1 = p2;
 			++p2;
 
@@ -196,21 +200,21 @@ void Polygon::cut(Polygon &polygon) {
 		q2 = q.begin();
 		++q2;
 		for (; q2 != q.end(); ) {
-			if ((*q1)->coor.first == MIN_INT || (*q2)->coor.first == MIN_INT) {
+			if ((*q1)->coor.first == FLT_MAX || (*q2)->coor.first == FLT_MAX) {
 				q1 = q2;
 				++q2;
 				continue;
 			}
 
-			pair<float, float> interPoint = intersect((*p1)->coor, (*p2)->coor, (*q1)->coor, (*q2)->coor, ok);
+			pair<float, float> interPoint = Utils::intersect((*p1)->coor, (*p2)->coor, (*q1)->coor, (*q2)->coor, ok);
 			if (ok) {
 				list<pointNode*>::iterator tmp;
 				pointNode *tmp1 = new pointNode(make_pair(round(interPoint.first), round(interPoint.second)), true);
 				bool inFlag;
-				pair<int, int> p1p2, q1q2;
+				pair<float, float> p1p2, q1q2;
 				p1p2 = make_pair((*p2)->coor.first - (*p1)->coor.first, (*p2)->coor.second - (*p1)->coor.second);
 				q1q2 = make_pair((*q2)->coor.first - (*q1)->coor.first, (*q2)->coor.second - (*q1)->coor.second);
-				if (cross(p1p2, q1q2) > 0) {
+				if (Utils::cross(p1p2, q1q2) > 0) {
 					inFlag = true;
 				} else {
 					inFlag = false;
@@ -220,7 +224,7 @@ void Polygon::cut(Polygon &polygon) {
 				auto lastIt = p1;
 				++p1;
 				while (lastIt != p2) {
-					int x1, x2, x3, y1, y2, y3;
+					float x1, x2, x3, y1, y2, y3;
 					x1 = (*lastIt)->coor.first;
 					x2 = tmp1->coor.first;
 					x3 = (*p1)->coor.first;
@@ -234,7 +238,7 @@ void Polygon::cut(Polygon &polygon) {
 					++lastIt;
 					++p1;
 				}
-				pointNode *tmp2 = new pointNode(make_pair(round(interPoint.first), round(interPoint.second)), true);
+				pointNode *tmp2 = new pointNode(make_pair(interPoint.first, interPoint.second), true);
 				tmp2->isIn = inFlag;
 				q.insert(++q1, tmp2);
 				tmp1->ptr = --q1;
@@ -248,6 +252,23 @@ void Polygon::cut(Polygon &polygon) {
 
 		p1 = p2;
 		++p2;
+	}
+
+	if (p.size() == v.size()) {
+		v.clear();
+		for (auto point : polygon.v) {
+			v.push_back(point);
+		}
+
+		connectVertices();
+
+		if (interior.size()) {
+			interior = list< pair<int, int> >();
+			fill();
+		}
+
+		polygon.isVisible = false;
+		return;
 	}
 
 	list<pointNode*> resList;
@@ -273,7 +294,7 @@ void Polygon::cut(Polygon &polygon) {
 			while (true) {
 				if ((*it)->isTraversed) {
 					resList.push_back(*it);
-					pointNode *tmpNode = new pointNode(make_pair(MIN_INT, MIN_INT), false);
+					pointNode *tmpNode = new pointNode(make_pair(FLT_MAX, FLT_MAX), false);
 					resList.push_back(tmpNode);
 					checkFlag = true;
 					break;
@@ -286,7 +307,7 @@ void Polygon::cut(Polygon &polygon) {
 					(*it)->isTraversed = true;
 					it = (*it)->ptr;
 					isP = !isP;
-				} else if ((*it)->coor.first == MIN_INT) {
+				} else if ((*it)->coor.first == FLT_MAX) {
 					it = (*tmp)->ptr;
 				}
 			}
@@ -304,4 +325,6 @@ void Polygon::cut(Polygon &polygon) {
 		interior = list< pair<int, int> >();
 		fill();
 	}
+
+	polygon.isVisible = false;
 }
